@@ -48,7 +48,14 @@ func getEnv(key string, env []string) string {
 func parseEnv(e string, env []string) (string, error) {
 	kv := strings.SplitN(e, "=", -1)
 	if len(kv) != 2 {
-		return "", fmt.Errorf("invalid env string: %s", e)
+		errs := "invalid environment variable value: " + e
+		// 자주하는 실수 중 하나가 -envfile 플래그 대신 -env 플래그에
+		// 파일을 넣는 것이다. 이 때 자세히 알려주지 않으면 문제를 찾는데
+		// 오래 걸릴 수 있다.
+		if len(kv) == 1 && strings.HasSuffix(strings.TrimSpace(kv[0]), ".env") {
+			errs += "\nyou might want to use -envfile flag?"
+		}
+		return "", fmt.Errorf(errs)
 	}
 	k := strings.TrimSpace(kv[0])
 	if k == "" {
