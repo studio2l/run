@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -41,6 +42,9 @@ func getEnv(key string, env []string) string {
 // "TEST=test", nil을 반환한다.
 // e가 환경변수 문자열로 변경 불가능 하다면 빈문자열과 에러를 반환한다.
 // 반환되는 문자열 키와 값 앞 뒤의 공백은 제거된다.
+//
+// 주의: e 값의 특정 문자는 해당 OS에 맞게 자동으로 변환된다.
+// 관련해서는 autoConvertValueString 함수 주석 참조할 것.
 func parseEnv(e string, env []string) (string, error) {
 	kv := strings.SplitN(e, "=", -1)
 	if len(kv) != 2 {
@@ -48,12 +52,16 @@ func parseEnv(e string, env []string) (string, error) {
 	}
 	k := strings.TrimSpace(kv[0])
 	if k == "" {
-		return "", fmt.Errorf("env key empty")
+		return "", fmt.Errorf("environment variable key not found")
 	}
 	if strings.Contains(k, "$") {
-		return "", fmt.Errorf("env key should not have '$' char: %s", k)
+		return "", fmt.Errorf("environment variable key should not have '$' char: %s", k)
 	}
 	v := strings.TrimSpace(kv[1])
+	v, err := autoConvertValueString(v)
+	if err != nil {
+		return "", fmt.Errorf("%s: %s", err, e)
+	}
 	re := regexp.MustCompile(`[$]\w+`)
 	for {
 		idxs := re.FindStringIndex(v)
@@ -69,6 +77,30 @@ func parseEnv(e string, env []string) (string, error) {
 		v = pre + envv + post
 	}
 	return k + "=" + v, nil
+}
+
+// autoConvertValueString는 환경변수 값 안의 특정 문자를
+// 해당 OS에 맞게 자동으로 변환한다.
+//
+// 	/  ->  해당 OS의 경로 구분자로 변경된다.
+// 	:  ->  해당 OS의 환경변수 구분자로 변경된다.
+//
+// 만일 이렇게 변경되지 않아야 할 문자라면 `로 감싸면 된다.
+//
+// 	예) FILE_PATH=`https://웹/사이트/주소`
+//
+func autoConvertValueString(v string) (string, error) {
+	vs := strings.Split(v, "`")
+	if len(vs)%2 != 1 {
+		return "", fmt.Errorf("quote(`) not terminated")
+	}
+	for i := 0; i < len(vs); i += 2 {
+		// 0, 2, 4, ... 번째 항목들이 쿼트 바깥의 문자열이다.
+		vs[i] = filepath.FromSlash(vs[i])
+		vs[i] = envSepFromColon(vs[i])
+	}
+	v = strings.Join(vs, "")
+	return v, nil
 }
 
 // parseEnvFile은 파일을 읽어 그 안의 환경변수 문자열을 리스트 형태로 반환한다.
@@ -147,7 +179,11 @@ func main() {
 		}
 		envs, err := parseEnvFile(envf, env)
 		if err != nil {
-			if os.IsNotExist(err) && dieNoFile {
+			if os.IsNotExist(err) {
+				if dieNoFile {
+					die(err)
+				}
+			} else {
 				die(err)
 			}
 		}
