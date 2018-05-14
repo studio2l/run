@@ -1,6 +1,7 @@
 package main
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -14,9 +15,9 @@ func TestParseEnv(t *testing.T) {
 		{"TEST=abc", []string{}, "TEST=abc"},
 		{"TEST=$A", []string{"A=abc"}, "TEST=abc"},
 		{"TEST=$B", []string{"A=abc"}, "TEST="},
-		{"TEST=$A/$B", []string{"A=abc"}, "TEST=abc/"},
-		{"TEST=$A/$B", []string{"A=abc", "B=def"}, "TEST=abc/def"},
-		{"TEST=$A/$B", []string{"  A = abc ", " B =def  "}, "TEST=abc/def"},
+		{"TEST=$A/$B", []string{"A=abc"}, "TEST=" + filepath.FromSlash("abc/")},
+		{"TEST=$A/$B", []string{"A=abc", "B=def"}, "TEST=" + filepath.FromSlash("abc/def")},
+		{"TEST=$A/$B", []string{"  A = abc ", " B =def  "}, "TEST=" + filepath.FromSlash("abc/def")},
 	}
 	for _, c := range cases {
 		got, err := parseEnv(c.e, c.env)
@@ -31,9 +32,9 @@ func TestParseEnv(t *testing.T) {
 
 func TestParseEnvfileValid(t *testing.T) {
 	want := []string{
-		"TL_GLOBAL_PATH=Z:\\VFX\\global",
-		"TL_MAYA_PATH=Z:\\VFX\\global\\maya",
-		"TL_HOUDINI_PATH=Z:\\VFX\\global\\houdini",
+		"TL_GLOBAL_PATH=" + filepath.FromSlash("Z:/VFX/global"),
+		"TL_MAYA_PATH=" + filepath.FromSlash("Z:/VFX/global/maya"),
+		"TL_HOUDINI_PATH=" + filepath.FromSlash("Z:/VFX/global/houdini"),
 		"A=a",
 		"B=b",
 		"C=c",
