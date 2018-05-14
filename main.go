@@ -65,23 +65,9 @@ func parseEnv(e string, env []string) (string, error) {
 		return "", fmt.Errorf("environment variable key should not have '$' char: %s", k)
 	}
 	v := strings.TrimSpace(kv[1])
-	v, err := autoConvertValueString(v)
+	v, err := autoConvertValueString(v, env)
 	if err != nil {
 		return "", fmt.Errorf("%s: %s", err, e)
-	}
-	re := regexp.MustCompile(`[$]\w+`)
-	for {
-		idxs := re.FindStringIndex(v)
-		if idxs == nil {
-			break
-		}
-		s := idxs[0]
-		e := idxs[1]
-		pre := v[:s]
-		post := v[e:]
-		envk := v[s+1 : e]
-		envv := getEnv(envk, env)
-		v = pre + envv + post
 	}
 	return k + "=" + v, nil
 }
@@ -96,7 +82,7 @@ func parseEnv(e string, env []string) (string, error) {
 //
 // 	예) FILE_PATH=`https://웹/사이트/주소`
 //
-func autoConvertValueString(v string) (string, error) {
+func autoConvertValueString(v string, env []string) (string, error) {
 	vs := strings.Split(v, "`")
 	if len(vs)%2 != 1 {
 		return "", fmt.Errorf("quote(`) not terminated")
@@ -105,9 +91,29 @@ func autoConvertValueString(v string) (string, error) {
 		// 0, 2, 4, ... 번째 항목들이 쿼트 바깥의 문자열이다.
 		vs[i] = filepath.FromSlash(vs[i])
 		vs[i] = envSepFromColon(vs[i])
+		vs[i] = replaceEnvVar(vs[i], env)
 	}
 	v = strings.Join(vs, "")
 	return v, nil
+}
+
+// replaceEnvVar는 문자열 안의 환경변수들을 그 값으로 변경하여 반환한다.
+func replaceEnvVar(v string, env []string) string {
+	re := regexp.MustCompile(`[$]\w+`)
+	for {
+		idxs := re.FindStringIndex(v)
+		if idxs == nil {
+			break
+		}
+		s := idxs[0]
+		e := idxs[1]
+		pre := v[:s]
+		post := v[e:]
+		envk := v[s+1 : e]
+		envv := getEnv(envk, env)
+		v = pre + envv + post
+	}
+	return v
 }
 
 // parseEnvFile은 파일을 읽어 그 안의 환경변수 문자열을 리스트 형태로 반환한다.
