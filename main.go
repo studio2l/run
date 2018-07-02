@@ -21,9 +21,10 @@ func die(err error) {
 }
 
 // getEnv는 환경변수 리스트에서 해당 키를 찾아 그 값을 반환한다.
-// 만약 키가 없다면 빈 문자열을 반환한다.
+// 만약 키가 없다면 빈 문자열을 반환하고, 두 개 이상이라면 뒤에 설정된 값을 반환한다.
 func getEnv(key string, env []string) string {
-	for _, e := range env {
+	for i := len(env) - 1; i >= 0; i-- {
+		e := env[i]
 		kv := strings.SplitN(e, "=", -1)
 		if len(kv) != 2 {
 			continue
