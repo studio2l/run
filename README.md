@@ -33,6 +33,13 @@ run -env="HOUDINI_PATH=/vfx/global/houdini" -envfile="/vfx/global/houdini/env/al
 run -env="HOUDINI_PATH=/vfx/global/houdini,RENDERMAN_PATH=/vfx/global/renderman" -envfile="/vfx/global/houdini/env/all.env,/vfx/global/houdini/env/myteam.env"
 ```
 
+-envfile 플래그 경로 뒤에 물음표가 붙으면 그 env이 없어도 에러가 나지 않습니다.
+즉 아래에서 maybe.env파일이 없다고 에러가 나지 않습니다.
+
+```
+run -envfile="must.env,maybe.env?"
+```
+
 
 ### env 파일
 
