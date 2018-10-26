@@ -183,13 +183,13 @@ func main() {
 	}
 	for _, envf := range strings.Split(cfg.envfile, ",") {
 		envf = strings.TrimSpace(envf)
+		if envf == "" {
+			continue
+		}
 		dieNoFile := true
 		if len(envf) > 0 && envf[0] == '?' {
 			dieNoFile = false
 			envf = envf[1:]
-		}
-		if envf == "" {
-			continue
 		}
 		envs, err := parseEnvFile(envf, env)
 		if err != nil {
