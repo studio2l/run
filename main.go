@@ -187,7 +187,12 @@ func main() {
 			continue
 		}
 		dieNoFile := true
-		if len(envf) > 0 && envf[0] == '?' {
+		// env 파일경로 뒤에 물음표가 붙어있으면 그 파일이 없어도 에러를 내지 않음.
+		//
+		// 할일: 경로 앞에 물음표를 붙이는 것도 아직 유효한데, 이를 사용하는
+		// 명령이 2L 내부에 남아있기 때문이고, 이를 다 수정한 이후에는
+		// 지울 것.
+		if len(envf) > 0 && (envf[0] == '?' || envf[len(envf)-1] == '?') {
 			dieNoFile = false
 			envf = envf[1:]
 		}
