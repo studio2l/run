@@ -194,7 +194,7 @@ func main() {
 		// 지울 것.
 		if len(envf) > 0 && (envf[0] == '?' || envf[len(envf)-1] == '?') {
 			dieNoFile = false
-			envf = envf[1:]
+			envf = strings.Trim(envf, "?")
 		}
 		envs, err := parseEnvFile(envf, env)
 		if err != nil {
