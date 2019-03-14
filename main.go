@@ -159,7 +159,7 @@ type Config struct {
 func main() {
 	cfg := Config{}
 	flag.StringVar(&cfg.env, "env", "", "미리 선언할 환경변수. envfile에 앞서 설정됩니다. 콤마(,)를 이용해 여러 환경변수를 설정할 수 있습니다.")
-	flag.StringVar(&cfg.envfile, "envfile", "", "환경변수들이 설정되어있는 파일을 불러옵니다. 콤마(,)를 이용해 여러 파일을 불러 올 수 있습니다. ?(물음표) 로 시작하는 파일은 없어도 에러가 나지 않습니다.")
+	flag.StringVar(&cfg.envfile, "envfile", "", "환경변수들이 설정되어있는 파일을 불러옵니다. 콤마(,)를 이용해 여러 파일을 불러 올 수 있습니다. 파일명 뒤에 ?(물음표)를 붙이면 파일이 없어도 에러가 나지 않습니다.")
 	flag.StringVar(&cfg.dir, "dir", "", "명령을 실행할 디렉토리를 설정합니다. 설정하지 않으면 현재 디렉토리에서 실행합니다.")
 	flag.BoolVar(&cfg.printLog, "log", false, "run에서 설정된 환경변수를 출력합니다.")
 	flag.Parse()
