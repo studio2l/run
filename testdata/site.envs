@@ -1,0 +1,8 @@
+# 경로
+$SITE_ROOT/env/all.env
+$SITE_ROOT/env/$PROGRAM/all.env?
+$SITE_ROOT/env/$PROGRAM/$TEAM.env?
+
+$SITE_ROOT/show/$SHOW/show.env?
+# $SITE_ROOT/show/$SHOW/shot/$SHOT/shot.env?
+
