@@ -44,11 +44,61 @@ func TestParseEnvfileValid(t *testing.T) {
 		"ABCDE=abcde",
 	}
 	f := "testdata/valid.env"
-	got, err := parseEnvFile(f, []string{})
+	env := []string{}
+	got, err := parseEnvFile(f, env)
 	if err != nil {
-		t.Fatalf("parseEnvFile(%q, []): unexpected error: %v", f, err)
+		t.Fatalf("parseEnvFile(%q, %v): unexpected error: %v", f, env, err)
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("parseEnvfile(%q, []): got %s, want %s", f, got, want)
+		t.Fatalf("parseEnvfile(%q, %v):\ngot %v\nwant %v", f, env, got, want)
+	}
+}
+
+func TestParseEnvsetPaths(t *testing.T) {
+	want := []string{
+		"testdata/site/env/all.env",
+		"testdata/site/env/maya/all.env?",
+		"testdata/site/env/maya/lit.env?",
+		"testdata/site/show/test/show.env?",
+	}
+	f := "testdata/site.envs"
+	env := []string{"SITE_ROOT=testdata/site", "PROGRAM=maya", "TEAM=lit", "SHOW=test"}
+	got, err := parseEnvsetFile(f, env)
+	if err != nil {
+		t.Fatalf("parseEnvsetPaths(%q, %v): unexpected error: %v", f, env, err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseEnvsetPaths(%q, %v):\ngot %v\nwant %v", f, env, got, want)
+	}
+}
+
+func TestParseEnvsetEnvs(t *testing.T) {
+	want := []string{
+		"SITE_ROOT=testdata/site",
+		"PROGRAM=maya",
+		"TEAM=lit",
+		"SHOW=test",
+		"ALL=all",
+		"MAYA_ALL=maya_all",
+		"MAYA_LIT=maya_all/lit",
+	}
+	f := "testdata/site.envs"
+	env := []string{"SITE_ROOT=testdata/site", "PROGRAM=maya", "TEAM=lit", "SHOW=test"}
+	got := env
+	envfiles, err := parseEnvsetFile(f, got)
+	if err != nil {
+		t.Fatalf("parseEnvsetEnvs(%q, %v): unexpected error: %v", f, env, err)
+	}
+	for _, envf := range envfiles {
+		envs, err := parseEnvFile(envf, got)
+		if err != nil {
+			t.Fatalf("parseEnvsetEnvs(%q, %v): unexpected error: %v", f, env, err)
+		}
+		for _, e := range envs {
+			got = append(got, e)
+		}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseEnvsetEnvs(%q, %v):\ngot %v\nwant %v", f, env, got, want)
 	}
 }

@@ -49,14 +49,7 @@ func getEnv(key string, env []string) string {
 func parseEnv(e string, env []string) (string, error) {
 	kv := strings.SplitN(e, "=", -1)
 	if len(kv) != 2 {
-		errs := "invalid environment variable value: " + e
-		// 자주하는 실수 중 하나가 -envfile 플래그 대신 -env 플래그에
-		// 파일을 넣는 것이다. 이 때 자세히 알려주지 않으면 문제를 찾는데
-		// 오래 걸릴 수 있다.
-		if len(kv) == 1 && strings.HasSuffix(strings.TrimSpace(kv[0]), ".env") {
-			errs += "\nyou might want to use -envfile flag?"
-		}
-		return "", fmt.Errorf(errs)
+		return "", fmt.Errorf("expect key=value string: got %q", e)
 	}
 	k := strings.TrimSpace(kv[0])
 	if k == "" {
@@ -117,11 +110,57 @@ func replaceEnvVar(v string, env []string) string {
 	return v
 }
 
+// parseEnvsetFile은 여러 환경변수 설정 파일 경로가 저장 되어있는
+// envset 파일을 불러와 그 경로를 파싱한다. 만일 가리키는 경로에
+// 환경변수가 포함되어 있다면 이를 실제경로로 변경한다.
+func parseEnvsetFile(f string, env []string) ([]string, error) {
+	if f == "" {
+		return []string{}, nil
+	}
+	b, err := ioutil.ReadFile(f)
+	if err != nil {
+		return nil, err
+	}
+	s := string(b)
+	envfiles := make([]string, 0)
+	for _, envf := range strings.Split(s, "\n") {
+		envf = strings.TrimSpace(envf)
+		if envf == "" {
+			continue
+		}
+		if strings.HasPrefix(envf, "#") {
+			continue
+		}
+		envf = replaceEnvVar(envf, env)
+		envfiles = append(envfiles, envf)
+	}
+	return envfiles, nil
+}
+
 // parseEnvFile은 파일을 읽어 그 안의 환경변수 문자열을 리스트 형태로 반환한다.
 // 파일을 읽는 도중 에러가 나거나 환경변수 파싱이 불가능하다면 빈문자열과 에러를 반환한다.
 func parseEnvFile(f string, env []string) ([]string, error) {
+	if f == "" {
+		return []string{}, nil
+	}
+	errNoFile := true
+	// env 파일경로 뒤에 물음표가 붙어있으면 그 파일이 없어도 에러를 내지 않음.
+	//
+	// 할일: 경로 앞에 물음표를 붙이는 것도 아직 유효한데, 이를 사용하는
+	// 명령이 2L 내부에 남아있기 때문이고, 이를 다 수정한 이후에는
+	// 지울 것.
+	if len(f) > 0 && (f[0] == '?' || f[len(f)-1] == '?') {
+		errNoFile = false
+		f = strings.Trim(f, "?")
+	}
 	b, err := ioutil.ReadFile(f)
 	if err != nil {
+		if os.IsNotExist(err) {
+			if errNoFile {
+				return nil, err
+			}
+			return []string{}, nil
+		}
 		return nil, err
 	}
 	s := string(b)
@@ -136,7 +175,7 @@ func parseEnvFile(f string, env []string) ([]string, error) {
 		}
 		e, err := parseEnv(l, env)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse %s: %w", f, err)
 		}
 		penv = append(penv, e)
 
@@ -151,6 +190,7 @@ func parseEnvFile(f string, env []string) ([]string, error) {
 // Config는 커맨드라인 옵션 값을 담는다.
 type Config struct {
 	env      string
+	envset   string
 	envfile  string
 	dir      string
 	printLog bool
@@ -158,7 +198,8 @@ type Config struct {
 
 func main() {
 	cfg := Config{}
-	flag.StringVar(&cfg.env, "env", "", "미리 선언할 환경변수. envfile에 앞서 설정됩니다. 콤마(,)를 이용해 여러 환경변수를 설정할 수 있습니다.")
+	flag.StringVar(&cfg.env, "env", "", "미리 선언할 환경변수. envset, envfile에 앞서 설정됩니다. 콤마(,)를 이용해 여러 환경변수를 설정할 수 있습니다.")
+	flag.StringVar(&cfg.envset, "envset", "", "환경 파일들이 설정되어있는 환경셋 파일을 불러옵니다. 하나의 파일만 설정가능합니다. envfile에 앞서 파싱됩니다.")
 	flag.StringVar(&cfg.envfile, "envfile", "", "환경변수들이 설정되어있는 파일을 불러옵니다. 콤마(,)를 이용해 여러 파일을 불러 올 수 있습니다. 파일명 뒤에 ?(물음표)를 붙이면 파일이 없어도 에러가 나지 않습니다.")
 	flag.StringVar(&cfg.dir, "dir", "", "명령을 실행할 디렉토리를 설정합니다. 설정하지 않으면 현재 디렉토리에서 실행합니다.")
 	flag.BoolVar(&cfg.printLog, "log", false, "run에서 설정된 환경변수를 출력합니다.")
@@ -166,6 +207,7 @@ func main() {
 
 	// OS 환경변수에 env와 envfile을 파싱해 환경변수를 추가/대체한다.
 	env := os.Environ()
+	envs := []string{}
 	for _, e := range strings.Split(cfg.env, ",") {
 		e = strings.TrimSpace(e)
 		if e == "" {
@@ -176,41 +218,45 @@ func main() {
 		if err != nil {
 			die(err)
 		}
-		env = append(env, e)
-		if cfg.printLog {
-			fmt.Println(e)
+		envs = append(envs, e)
+	}
+	if cfg.printLog {
+		fmt.Println("-env")
+		for _, e := range envs {
+			fmt.Printf("  %s\n", e)
 		}
+	}
+	for _, e := range envs {
+		env = append(env, e)
+	}
+
+	// 파싱할 env 파일을 찾는다.
+	// 우선 envset 파일을 파싱하고 다음으로 envfile에 설정된 파일들을 추가한다.
+	envfiles, err := parseEnvsetFile(cfg.envset, env)
+	if err != nil {
+		die(err)
 	}
 	for _, envf := range strings.Split(cfg.envfile, ",") {
 		envf = strings.TrimSpace(envf)
 		if envf == "" {
 			continue
 		}
-		dieNoFile := true
-		// env 파일경로 뒤에 물음표가 붙어있으면 그 파일이 없어도 에러를 내지 않음.
-		//
-		// 할일: 경로 앞에 물음표를 붙이는 것도 아직 유효한데, 이를 사용하는
-		// 명령이 2L 내부에 남아있기 때문이고, 이를 다 수정한 이후에는
-		// 지울 것.
-		if len(envf) > 0 && (envf[0] == '?' || envf[len(envf)-1] == '?') {
-			dieNoFile = false
-			envf = strings.Trim(envf, "?")
-		}
+		envfiles = append(envfiles, envf)
+	}
+
+	for _, envf := range envfiles {
 		envs, err := parseEnvFile(envf, env)
 		if err != nil {
-			if os.IsNotExist(err) {
-				if dieNoFile {
-					die(err)
-				}
-			} else {
-				die(err)
+			die(err)
+		}
+		if cfg.printLog {
+			fmt.Printf("\n%s\n", envf)
+			for _, e := range envs {
+				fmt.Printf("  %s\n", e)
 			}
 		}
 		for _, e := range envs {
 			env = append(env, e)
-			if cfg.printLog {
-				fmt.Println(e)
-			}
 		}
 	}
 
@@ -224,7 +270,7 @@ func main() {
 	cmd.Dir = cfg.dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		die(err)
 	}
