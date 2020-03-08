@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 )
 
@@ -207,6 +208,7 @@ func main() {
 
 	// OS 환경변수에 env와 envfile을 파싱해 환경변수를 추가/대체한다.
 	env := os.Environ()
+	env = append(env, fmt.Sprintf("RUNOS=%s", runtime.GOOS))
 	envs := []string{}
 	for _, e := range strings.Split(cfg.env, ",") {
 		e = strings.TrimSpace(e)
